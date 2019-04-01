@@ -1,0 +1,5 @@
+classes = 2
+train = cfg_DoorChair/train.txt
+valid  = cfg_DoorChair/test.txt
+names = cfg_DoorChair/obj.names
+backup = backup/

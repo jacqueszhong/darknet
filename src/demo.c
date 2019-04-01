@@ -38,6 +38,7 @@ static image det_s;
 static CvCapture * cap;
 static int cpp_video_capture = 0;
 static float fps = 0;
+static float average_fps = 0;
 static float demo_thresh = 0;
 static int demo_ext_output = 0;
 static long long int frame_id = 0;
@@ -216,6 +217,7 @@ void demo(char *cfgfile, char *weightfile, float thresh, float hier_thresh, int 
         //output_video_writer = cvCreateVideoWriter(out_filename, CV_FOURCC('W', 'M', 'V', '2'), src_fps, size, 1);
     }
 
+    double sumFPS = 0;
     double before = get_wall_time();
 
     while(1){
@@ -234,6 +236,7 @@ void demo(char *cfgfile, char *weightfile, float thresh, float hier_thresh, int 
             printf("\033[2J");
             printf("\033[1;1H");
             printf("\nFPS:%.1f\n", fps);
+            printf("\nAverageFPS:%.2f\n",average_fps);
             printf("Objects:\n\n");
 
             ++frame_id;
@@ -302,6 +305,10 @@ void demo(char *cfgfile, char *weightfile, float thresh, float hier_thresh, int 
             double after = get_time_point();    // more accurate time measurements
             float curr = 1000000. / (after - before);
             fps = curr;
+
+            sumFPS += fps;
+            average_fps = sumFPS / count;
+
             before = after;
         }
     }

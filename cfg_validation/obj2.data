@@ -1,0 +1,5 @@
+classes = 2
+train = cfg_validation/train.txt
+valid  = cfg_validation/valid_set2.txt
+names = cfg_validation/obj2.names
+backup = backup/
