@@ -1,0 +1,5 @@
+classes = 2
+train = cfg_DoorChair_freeze/train.txt
+valid  = cfg_DoorChair_freeze/test.txt
+names = cfg_DoorChair_freeze/obj.names
+backup = backup/
