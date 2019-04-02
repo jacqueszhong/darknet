@@ -2,10 +2,8 @@
 CUR_DIR=`pwd`
 
 DATA=$CUR_DIR/obj.data
-CONFIG=$CUR_DIR/yolov3-tiny_DoorChair_80.cfg
-WEIGHTS=models/yolov3-tiny.weights
-
-#OPTIONS="-dont_show -mjpeg_port 8090 -map"
+CONFIG=$CUR_DIR/yolov3-tiny_testAdam.cfg
+WEIGHTS=models/yolov3-tiny.conv.15
 OPTIONS="-dont_show"
 
 cd ..

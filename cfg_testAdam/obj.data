@@ -1,0 +1,5 @@
+classes = 2
+train = cfg_testAdam/train.txt
+valid  = cfg_testAdam/test.txt
+names = cfg_testAdam/obj.names
+backup = backup/
