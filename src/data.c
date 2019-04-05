@@ -624,12 +624,12 @@ data load_data_region(int n, char **paths, int m, int w, int h, int size, int cl
         float dx = ((float)pleft/ow)/sx;
         float dy = ((float)ptop /oh)/sy;
 
-        image sized = resize_image(cropped, w, h);
-        if(flip) flip_image(sized);
-        random_distort_image(sized, hue, saturation, exposure);
+        image sized = resize_image(cropped, w, h); //crop augmentation
+        if(flip) flip_image(sized); //flip augmentation
+        random_distort_image(sized, hue, saturation, exposure); //hse augmentation
         d.X.vals[i] = sized.data;
 
-        fill_truth_region(random_paths[i], d.y.vals[i], classes, size, flip, dx, dy, 1./sx, 1./sy);
+        fill_truth_region(random_paths[i], d.y.vals[i], classes, size, flip, dx, dy, 1./sx, 1./sy); //
 
         free_image(orig);
         free_image(cropped);
@@ -819,6 +819,7 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 
         if(!augmentation_calculated || !track)
         {
+            //printf("Inside augmentation\n");
             augmentation_calculated = 1;
             r1 = random_float();
             r2 = random_float();
@@ -837,6 +838,8 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
         int ptop   = rand_precalc_random(-dh, dh, r3);
         int pbot   = rand_precalc_random(-dh, dh, r4);
 
+        //printf("GOT : left=%d, right=%d,top=%d,bot%d,r1=%lf,r2=%lf,r3=%lf,r4=%lf\n",pleft,pright,ptop,pbot,r1,r2,r3,r4);
+
         int swidth =  ow - pleft - pright;
         int sheight = oh - ptop - pbot;
 
@@ -846,6 +849,8 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
         float dx = ((float)pleft/ow)/sx;
         float dy = ((float)ptop /oh)/sy;
 
+        //printf("Initial param w=%d, h=%d\n",ow,oh);
+        //printf("Augmenting with flip=%f, sw=%d, sh=%d, jitter=%f, dhue=%f, dsat=%f, dexp=%f\n", flip,swidth,sheight,jitter,dhue,dsat,dexp);
         image ai = image_data_augmentation(src, w, h, pleft, ptop, swidth, sheight, flip, jitter, dhue, dsat, dexp);
         d.X.vals[i] = ai.data;
 

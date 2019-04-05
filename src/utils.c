@@ -381,7 +381,7 @@ char *fgetl(FILE *fp)
     size_t curr = strlen(line);
 
     while((line[curr-1] != '\n') && !feof(fp)){
-        if(curr == size-1){
+        if(curr == size-1){ //double line size if char* is longer than size=512
             size *= 2;
             line = (char*)realloc(line, size * sizeof(char));
             if(!line) {
@@ -779,6 +779,7 @@ float rand_uniform(float min, float max)
 
 float rand_scale(float s)
 {
+    //Return scale between 1/s and s
     float scale = rand_uniform_strong(1, s);
     if(random_gen()%2) return scale;
     return 1./scale;

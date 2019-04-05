@@ -1,5 +1,5 @@
 classes = 2
-train = cfg_DoorChair/train.txt
-valid  = cfg_DoorChair/test.txt
-names = cfg_DoorChair/obj.names
+train = cfg_DoorChair_dataaug/train.txt
+valid  = cfg_DoorChair_dataaug/test.txt
+names = cfg_DoorChair_dataaug/obj.names
 backup = backup/

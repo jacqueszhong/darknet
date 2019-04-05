@@ -6,6 +6,6 @@ CONFIG=$CUR_DIR/yolov3-tiny_DoorChair_dataaug.cfg
 cd ..
 WEIGHTS=models/yolov3-tiny.conv.15
 OPTIONS="-dont_show"
-#OPTIONS="-dont_show -mjpeg_port 8090 -map"
+#OPTIONS=" -map"
 
 ./darknet detector train $DATA $CONFIG $WEIGHTS $OPTIONS

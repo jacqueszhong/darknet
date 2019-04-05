@@ -735,14 +735,15 @@ network parse_network_cfg(char *filename)
 
 network parse_network_cfg_custom(char *filename, int batch, int time_steps)
 {
-    list *sections = read_cfg(filename);
+    list *sections = read_cfg(filename); //Parsing entire file in a list of section
+
     node *n = sections->front;
     if(!n) error("Config file has no sections");
     network net = make_network(sections->size - 1);
     net.gpu_index = gpu_index;
     size_params params;
 
-    section *s = (section *)n->val;
+    section *s = (section *)n->val; //Parsing first section [net]
     list *options = s->options;
     if(!is_network(s)) error("First section must be [net] or [network]");
     parse_net_options(options, &net);

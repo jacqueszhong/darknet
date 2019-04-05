@@ -98,7 +98,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 
     srand(time(0));
     char *base = basecfg(cfgfile);
-    printf("%s\n", base);
+    printf("cfgbase=%s\n", base);
     float avg_loss = -1;
     network* nets = (network*)calloc(ngpus, sizeof(network));
 
@@ -110,7 +110,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 #ifdef GPU
         cuda_set_device(gpus[i]);
 #endif
-        nets[i] = parse_network_cfg(cfgfile);
+        nets[i] = parse_network_cfg(cfgfile); //.cfg parsing
         if (weightfile) {
             load_weights(&nets[i], weightfile);
         }
@@ -169,7 +169,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
     args.exposure = net.exposure;
     args.saturation = net.saturation;
     args.hue = net.hue;
-
+    
 #ifdef OPENCV
     args.threads = 3 * ngpus;   // Amazon EC2 Tesla V100: p3.2xlarge (8 logical cores) - p3.16xlarge
     //args.threads = 12 * ngpus;    // Ryzen 7 2700X (16 logical cores)
