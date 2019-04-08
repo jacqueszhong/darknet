@@ -3,3 +3,4 @@ train = cfg_DoorChair_dataaug/train.txt
 valid  = cfg_DoorChair_dataaug/test.txt
 names = cfg_DoorChair_dataaug/obj.names
 backup = backup/
+testdatacfg = cfg_validation/obj2.data

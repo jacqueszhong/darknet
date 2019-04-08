@@ -61,8 +61,24 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
     char *valid_images = option_find_str(options, "valid", train_images);
     char *backup_directory = option_find_str(options, "backup", "/backup/");
 
+    //Use "testdatacfg" in datacfg to specify path to test dataset obj.data
+    int calc_map_test = 0; //Decides if mAP on test dataset will be performed.
+    char *testdatacfg = option_find_str(options, "testdatacfg", NULL);
+    list *options_test = NULL;
+    char *test_images = NULL;
+    if (testdatacfg) {
+        options_test = read_data_cfg(testdatacfg);
+        test_images = option_find_str(options_test, "valid", NULL);
+        if (test_images) {
+            calc_map_test = 1; 
+            printf("YEAH ! Found test_images : %s \n",test_images);
+        }        
+    }
+
     int train_images_num = 0;
     network net_map;
+    network net_map_test;
+
     if (calc_map) {
         FILE* valid_file = fopen(valid_images, "r");
         if (!valid_file) {
@@ -94,6 +110,29 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
         free(net_map.workspace);
 #endif
         */
+    }
+
+    if (calc_map_test) {
+        FILE* test_file = fopen(test_images, "r");
+        if (!test_file) {
+            printf("\n Error: There is no %s file for mAP calculation!\n", test_images);
+            getchar();
+            exit(-1);
+        }
+        else fclose(test_file);
+        list *plist = get_paths(train_images);
+        train_images_num = plist->size;
+        free_list(plist);
+
+        cuda_set_device(gpus[0]);
+        printf(" Prepare additional network for TEST mAP calculation...\n");
+        net_map_test = parse_network_cfg_custom(cfgfile, 1, 1);
+
+
+        int k;  // free memory unnecessary arrays
+        for (k = 0; k < net_map_test.n; ++k) {
+                free_layer(net_map_test.layers[k]);
+        }
     }
 
     srand(time(0));
@@ -149,6 +188,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
     iter_save_last = get_current_batch(net);
     iter_map = get_current_batch(net);
     float mean_average_precision = -1;
+    float mean_average_precision_test = -1;
 
     load_args args = { 0 };
     args.w = net.w;
@@ -174,7 +214,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
     args.threads = 3 * ngpus;   // Amazon EC2 Tesla V100: p3.2xlarge (8 logical cores) - p3.16xlarge
     //args.threads = 12 * ngpus;    // Ryzen 7 2700X (16 logical cores)
     IplImage* img = NULL;
-    float max_img_loss = 5;
+    float max_img_loss = 10;
     int number_of_lines = 100;
     int img_size = 1000;
     img = draw_train_chart(max_img_loss, net.max_batches, number_of_lines, img_size, dont_show);
@@ -263,12 +303,17 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 
         i = get_current_batch(net);
 
+        //Get next iteration for mAP calculation
         int calc_map_for_each = 4 * train_images_num / (net.batch * net.subdivisions);  // calculate mAP for each 4 Epochs
         calc_map_for_each = fmax(calc_map_for_each, 100);
         int next_map_calc = iter_map + calc_map_for_each;
         next_map_calc = fmax(next_map_calc, net.burn_in);
         next_map_calc = fmax(next_map_calc, 1000);
-        if (calc_map) {
+
+
+        //next_map_calc = i;
+
+        if (calc_map || calc_map_test) {
             printf("\n (next mAP calculation at %d iterations) ", next_map_calc);
             if (mean_average_precision > 0) printf("\n Last accuracy mAP@0.5 = %2.2f %% ", mean_average_precision * 100);
         }
@@ -279,6 +324,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
         }
         printf("\n %d: %f, %f avg loss, %f rate, %lf seconds, %d images\n", get_current_batch(net), loss, avg_loss, get_current_rate(net), (what_time_is_it_now() - time), i*imgs);
 
+        //mAP calculation
         int draw_precision = 0;
         if (calc_map && (i >= next_map_calc || i == net.max_batches)) {
             if (l.random) {
@@ -305,9 +351,56 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
             mean_average_precision = validate_detector_map(datacfg, cfgfile, weightfile, 0.25, 0.5, &net_map);// &net_combined);
             printf("\n mean_average_precision (mAP@0.5) = %f \n", mean_average_precision);
             draw_precision = 1;
+
+            //Save mAP datas to files
+            FILE *fmap = fopen("mAP.csv","a");
+            if (!fmap){
+                printf("Error in opening mAP.csv\n");
+                exit(-1);
+            }
+            fprintf(fmap,"%d,%4f\n",i,mean_average_precision);
+            printf("Wrote results in mAP.csv\n");
+            fclose(fmap);
         }
+        
+        //Test mAP calculation
+        if (calc_map_test && (i >= next_map_calc || i == net.max_batches)) {
+            if (l.random) {
+                printf("Resizing to initial size: %d x %d \n", init_w, init_h);
+                args.w = init_w;
+                args.h = init_h;
+                pthread_join(load_thread, 0);
+                free_data(train);
+                train = buffer;
+                load_thread = load_data(args);
+                int k;
+                for (k = 0; k < ngpus; ++k) {
+                    resize_network(nets + k, init_w, init_h);
+                }
+                net = nets[0];
+            }
+
+            copy_weights_net(net, &net_map_test);
+            mean_average_precision_test = validate_detector_map(testdatacfg, cfgfile, weightfile, 0.25, 0.5, &net_map_test);// &net_combined);
+            printf("\n mean_average_precision test (mAP@0.5) = %f \n", mean_average_precision_test);
+            draw_precision = 1;
+
+            //Save mAP datas to files
+            FILE *fmaptest = fopen("mAP_test.csv","a");
+            if (!fmaptest){
+                printf("Error in opening mAP_test.csv\n");
+                exit(-1);
+            }
+            fprintf(fmaptest,"%d,%4f\n",i,mean_average_precision_test);
+            printf("Wrote results in mAP_test.csv\n");
+            fclose(fmaptest);
+        }
+        
+
 #ifdef OPENCV
         draw_train_loss(img, img_size, avg_loss, max_img_loss, i, net.max_batches, mean_average_precision, draw_precision, "mAP%", dont_show, mjpeg_port);
+
+
 #endif    // OPENCV
 
         //if (i % 1000 == 0 || (i < 1000 && i % 100 == 0)) {
@@ -1435,6 +1528,7 @@ void run_detector(int argc, char **argv)
     int num_of_clusters = find_int_arg(argc, argv, "-num_of_clusters", 5);
     int width = find_int_arg(argc, argv, "-width", -1);
     int height = find_int_arg(argc, argv, "-height", -1);
+
     // extended output in test mode (output of rect bound coords)
     // and for recall mode (extended output table-like format with results for best_class fit)
     int ext_output = find_arg(argc, argv, "-ext_output");
