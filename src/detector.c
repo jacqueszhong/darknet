@@ -52,7 +52,7 @@ void draw_train_loss(IplImage* img, int img_size, float avg_loss, float max_img_
 int check_mistakes;
 int T_SAVE = 1000;
 int CUR_IT = 0;
-const char *csv_path[] = {"backup/mAP_validate.csv","backup/mAP.csv","backup/mAP_test.csv"};
+const char *csv_path[] = {"mAP_manual.csv","backup/mAP_validate.csv","backup/mAP_test.csv"};
 
 static int coco_ids[] = { 1,2,3,4,5,6,7,8,9,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,27,28,31,32,33,34,35,36,37,38,39,40,41,42,43,44,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,67,70,72,73,74,75,76,77,78,79,80,81,82,84,85,86,87,88,89,90 };
 
@@ -314,7 +314,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
         next_map_calc = fmax(next_map_calc, 1000);
         */
         int calc_map_for_each = train_images_num / (4*net.batch);
-        int next_map_calc = iter_map + 100;
+        int next_map_calc = iter_map + 20;
         printf("calc_map_for : %d, next_map_calc : %d, iter_map : %d\n",calc_map_for_each,next_map_calc,iter_map);
         if (i >= calc_map_for_each) {
             next_map_calc = fmin(next_map_calc, T_SAVE*ceil((1.0*i)/T_SAVE)); //Compute mAP when saving weights
@@ -353,30 +353,32 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
             // combine Training and Validation networks
             //network net_combined = combine_train_valid_networks(net, net_map);
 
+            //Write iterations to file
             iter_map = i;
-            mean_average_precision = validate_detector_map(datacfg, cfgfile, weightfile, 0.25, 0.5, &net_map);// &net_combined);
-            printf("\n mean_average_precision (mAP@0.5) = %f \n", mean_average_precision);
-            draw_precision = 1;
-
-            //Save mAP datas to files
             FILE *fmap = fopen(csv_path[1],"a");
             if (!fmap){
                 printf("Error in opening mAP.csv\n");
                 exit(-1);
             }
-            fprintf(fmap,"%d,%4f\n",i,mean_average_precision);
-            printf("Wrote results in mAP.csv\n");
+            fprintf(fmap,"%d",i); //iteration
             fclose(fmap);
+            
+            //Write mAP to file
+            mean_average_precision = validate_detector_map(datacfg, cfgfile, weightfile, 0.25, 0.5, &net_map, csv_path[1]);// &net_combined);
+            printf("\n mean_average_precision (mAP@0.5) = %f \n", mean_average_precision);
+            draw_precision = 1;
+            printf("Wrote results in %s\n",csv_path[1]);
+            
         }
         
         //Test mAP calculation
+        /*
         if (calc_map_test && (i >= next_map_calc || i == net.max_batches)) {
             CUR_IT = i;
             iter_map = i;
             validate_detector_map(testdatacfg, cfgfile, weightfile, 0.25, 0.5, NULL);
-        }
+        }*/
 
-        /*
         if (calc_map_test && (i >= next_map_calc || i == net.max_batches)) {
             if (l.random) {
                 printf("Resizing to initial size: %d x %d \n", init_w, init_h);
@@ -393,23 +395,25 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
                 net = nets[0];
             }
 
-            iter_map = i;
             copy_weights_net(net, &net_map_test);
-            mean_average_precision_test = validate_detector_map(testdatacfg, cfgfile, weightfile, 0.25, 0.5, &net_map_test);// &net_combined);
-            printf("\n mean_average_precision test (mAP@0.5) = %f \n", mean_average_precision_test);
-            draw_precision = 1;
 
-            //Save mAP datas to files
-            FILE *fmaptest = fopen("mAP_test.csv","a");
+            //Write iterations to file
+            iter_map = i;
+            FILE *fmaptest = fopen(csv_path[2],"a");
             if (!fmaptest){
                 printf("Error in opening mAP_test.csv\n");
                 exit(-1);
             }
-            fprintf(fmaptest,"%d,%4f\n",i,mean_average_precision_test);
-            printf("Wrote results in mAP_test.csv\n");
+            fprintf(fmaptest,"%d",i); //iteration
             fclose(fmaptest);
+
+            //Write mAP to file
+            mean_average_precision_test = validate_detector_map(testdatacfg, cfgfile, weightfile, 0.25, 0.5, &net_map_test, csv_path[2]);// &net_combined);
+            printf("\n mean_average_precision test (mAP@0.5) = %f \n", mean_average_precision_test);
+            draw_precision = 1;
+            printf("Wrote results in %s\n",csv_path[2]);
         }
-        */
+        
 
 #ifdef OPENCV
         draw_train_loss(img, img_size, avg_loss, max_img_loss, i, net.max_batches, mean_average_precision, draw_precision, "mAP%", dont_show, mjpeg_port);
@@ -782,7 +786,7 @@ int detections_comparator(const void *pa, const void *pb)
     return 0;
 }
 
-float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float thresh_calc_avg_iou, const float iou_thresh, network *existing_net)
+float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float thresh_calc_avg_iou, const float iou_thresh, network *existing_net, char* output_file)
 {
     int j;
     list *options = read_data_cfg(datacfg);
@@ -1088,14 +1092,14 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
     free(truth_flags);
 
 
-    FILE* fmap = fopen(csv_path[0],"a");
+    FILE* fmap = fopen(output_file,"a");
     /*
     fprintf(fmap,"Iterations");
     for (i=0;i<classes;i++){
         fprintf(fmap,",%s",names[i]);
-    }*/
+    }
     fprintf(fmap, "%d", CUR_IT);
-
+    */
     double mean_average_precision = 0;
     for (i = 0; i < classes; ++i) {
         double avg_precision = 0;
@@ -1601,7 +1605,7 @@ void run_detector(int argc, char **argv)
     else if (0 == strcmp(argv[2], "train")) train_detector(datacfg, cfg, weights, gpus, ngpus, clear, dont_show, calc_map, mjpeg_port);
     else if (0 == strcmp(argv[2], "valid")) validate_detector(datacfg, cfg, weights, outfile);
     else if (0 == strcmp(argv[2], "recall")) validate_detector_recall(datacfg, cfg, weights);
-    else if (0 == strcmp(argv[2], "map")) validate_detector_map(datacfg, cfg, weights, thresh, iou_thresh, NULL);
+    else if (0 == strcmp(argv[2], "map")) validate_detector_map(datacfg, cfg, weights, thresh, iou_thresh, NULL, csv_path[0]);
     else if (0 == strcmp(argv[2], "calc_anchors")) calc_anchors(datacfg, num_of_clusters, width, height, show);
     else if (0 == strcmp(argv[2], "demo")) {
         list *options = read_data_cfg(datacfg);

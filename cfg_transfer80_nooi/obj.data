@@ -1,5 +1,0 @@
-classes = 80
-train = cfg_transfer80/train.txt
-valid  = cfg_transfer80/test.txt
-names = cfg_transfer80/obj.names
-backup = backup/
