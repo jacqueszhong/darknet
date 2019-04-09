@@ -51,6 +51,8 @@ void draw_train_loss(IplImage* img, int img_size, float avg_loss, float max_img_
 
 int check_mistakes;
 int T_SAVE = 1000;
+int CUR_IT = 0;
+const char *csv_path[] = {"backup/mAP_validate.csv","backup/mAP.csv","backup/mAP_test.csv"};
 
 static int coco_ids[] = { 1,2,3,4,5,6,7,8,9,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,27,28,31,32,33,34,35,36,37,38,39,40,41,42,43,44,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,67,70,72,73,74,75,76,77,78,79,80,81,82,84,85,86,87,88,89,90 };
 
@@ -304,15 +306,19 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
         i = get_current_batch(net);
 
         //Get next iteration for mAP calculation
+        /*
         int calc_map_for_each = 4 * train_images_num / (net.batch * net.subdivisions);  // calculate mAP for each 4 Epochs
         calc_map_for_each = fmax(calc_map_for_each, 100);
         int next_map_calc = iter_map + calc_map_for_each;
         next_map_calc = fmax(next_map_calc, net.burn_in);
         next_map_calc = fmax(next_map_calc, 1000);
-
-
-        //next_map_calc = i;
-
+        */
+        int calc_map_for_each = train_images_num / (4*net.batch);
+        int next_map_calc = iter_map + 100;
+        printf("calc_map_for : %d, next_map_calc : %d, iter_map : %d\n",calc_map_for_each,next_map_calc,iter_map);
+        if (i >= calc_map_for_each) {
+            next_map_calc = fmin(next_map_calc, T_SAVE*ceil((1.0*i)/T_SAVE)); //Compute mAP when saving weights
+        }
         if (calc_map || calc_map_test) {
             printf("\n (next mAP calculation at %d iterations) ", next_map_calc);
             if (mean_average_precision > 0) printf("\n Last accuracy mAP@0.5 = %2.2f %% ", mean_average_precision * 100);
@@ -353,7 +359,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
             draw_precision = 1;
 
             //Save mAP datas to files
-            FILE *fmap = fopen("mAP.csv","a");
+            FILE *fmap = fopen(csv_path[1],"a");
             if (!fmap){
                 printf("Error in opening mAP.csv\n");
                 exit(-1);
@@ -364,6 +370,13 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
         }
         
         //Test mAP calculation
+        if (calc_map_test && (i >= next_map_calc || i == net.max_batches)) {
+            CUR_IT = i;
+            iter_map = i;
+            validate_detector_map(testdatacfg, cfgfile, weightfile, 0.25, 0.5, NULL);
+        }
+
+        /*
         if (calc_map_test && (i >= next_map_calc || i == net.max_batches)) {
             if (l.random) {
                 printf("Resizing to initial size: %d x %d \n", init_w, init_h);
@@ -380,6 +393,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
                 net = nets[0];
             }
 
+            iter_map = i;
             copy_weights_net(net, &net_map_test);
             mean_average_precision_test = validate_detector_map(testdatacfg, cfgfile, weightfile, 0.25, 0.5, &net_map_test);// &net_combined);
             printf("\n mean_average_precision test (mAP@0.5) = %f \n", mean_average_precision_test);
@@ -395,7 +409,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
             printf("Wrote results in mAP_test.csv\n");
             fclose(fmaptest);
         }
-        
+        */
 
 #ifdef OPENCV
         draw_train_loss(img, img_size, avg_loss, max_img_loss, i, net.max_batches, mean_average_precision, draw_precision, "mAP%", dont_show, mjpeg_port);
@@ -1074,8 +1088,15 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
     free(truth_flags);
 
 
-    double mean_average_precision = 0;
+    FILE* fmap = fopen(csv_path[0],"a");
+    /*
+    fprintf(fmap,"Iterations");
+    for (i=0;i<classes;i++){
+        fprintf(fmap,",%s",names[i]);
+    }*/
+    fprintf(fmap, "%d", CUR_IT);
 
+    double mean_average_precision = 0;
     for (i = 0; i < classes; ++i) {
         double avg_precision = 0;
         int point;
@@ -1097,7 +1118,13 @@ float validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, floa
         avg_precision = avg_precision / 11;
         printf("class_id = %d, name = %s, \t ap = %2.2f %% \n", i, names[i], avg_precision * 100);
         mean_average_precision += avg_precision;
+
+
+        //Save to csv
+        fprintf(fmap,",%6f",avg_precision);
     }
+    fprintf(fmap,",%6f\n",mean_average_precision/classes);
+    fclose(fmap);
 
     const float cur_precision = (float)tp_for_thresh / ((float)tp_for_thresh + (float)fp_for_thresh);
     const float cur_recall = (float)tp_for_thresh / ((float)tp_for_thresh + (float)(unique_truth_count - tp_for_thresh));
