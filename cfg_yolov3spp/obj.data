@@ -1,0 +1,6 @@
+classes = 80
+train = cfg_yolov3spp/train.txt
+valid  = cfg_yolov3spp/test.txt
+names = cfg_yolov3spp/obj.names
+backup = backup/
+testdatacfg=cfg_validation/obj80.data

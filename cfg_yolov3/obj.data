@@ -1,0 +1,6 @@
+classes = 2
+train = cfg_yolov3/train.txt
+valid  = cfg_yolov3/test.txt
+names = cfg_yolov3/obj.names
+backup = backup/
+testdatacfg = cfg_validation/obj2.data
